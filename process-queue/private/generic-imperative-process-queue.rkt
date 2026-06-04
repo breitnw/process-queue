@@ -94,5 +94,6 @@
                                              (set-box! q (rest l))
                                              v)
                                            (compose1 length unbox)
-                                           #:kill-older-than kot))))
+                                           #:kill-older-than kot))
+                                        #:defer-update? #t))
 

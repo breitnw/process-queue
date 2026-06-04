@@ -195,7 +195,8 @@
                                             (λ (q v ignored) (append q (list v)))
                                             (λ (q) (list (rest q) (first q)))
                                             #:data d
-                                            #:kill-older-than kot)))
+                                            #:kill-older-than kot))
+   #:defer-update? #f)
   (test-priority-process-queue-basics
    (λ (n [data #f] [ordering <])
      (make-generic-functional-process-queue n
@@ -208,4 +209,5 @@
                                                     argmin
                                                     argmax))
                                               (define el (pick second q))
-                                              (list (remove el q) (first el)))))))
+                                              (list (remove el q) (first el)))))
+   #:defer-update? #f))

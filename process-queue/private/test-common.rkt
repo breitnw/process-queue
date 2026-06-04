@@ -30,7 +30,7 @@
   (close-input-port stderr))
 
 ;; lltodo: these tests could be shared with the imperative below with a little cleverness
-(define (test-process-queue-basics make-process-queue)
+(define (test-process-queue-basics make-process-queue #:defer-update? defer-update?)
   (test-begin
     #:name basic
     (ignore (define q (make-process-queue 1))
@@ -42,17 +42,18 @@
                                              (λ (q info)
                                                (set-box! will-called? #t)
                                                (close-process-ports! info)
-                                               q))))))
-    (test-= (process-queue-waiting-count q1) 0)
+                                               q)))
+                                          #:defer-update? defer-update?)))
+    (test-= (process-queue-waiting-count q1) (if defer-update? 1 0))
     (not (unbox will-called?))
-    (test-= (process-queue-active-count q1) 1)
+    (test-= (process-queue-active-count q1) (if defer-update? 0 1))
 
     (ignore (define q1* (process-queue-wait q1)))
     (test-= (process-queue-waiting-count q1*) 0)
-    (test-= (process-queue-waiting-count q1) 0)
+    (test-= (process-queue-waiting-count q1) (if defer-update? 1 0))
     (unbox will-called?)
     (test-= (process-queue-active-count q1*) 0)
-    (test-= (process-queue-active-count q1) 1))
+    (test-= (process-queue-active-count q1) (if defer-update? 0 1)))
 
   (test-begin
     #:name will
@@ -67,7 +68,8 @@
                                              (λ (q* info)
                                                (set-box! will-1-called? #t)
                                                (close-process-ports! info)
-                                               q*)))))
+                                               q*)))
+                                          #:defer-update? defer-update?))
             (define q2 (process-queue-enqueue q1
                                           (λ _
                                             (simple-process
@@ -83,21 +85,23 @@
                                                    (λ (q** info)
                                                      (set-box! will-3-called? #t)
                                                      (close-process-ports! info)
-                                                     q**))))))))))
-    (test-= (process-queue-active-count q1) 1)
-    (test-= (process-queue-waiting-count q1) 0)
-    (test-= (process-queue-active-count q2) 1)
-    (test-= (process-queue-waiting-count q2) 1)
+                                                     q**)))
+                                                #:defer-update? defer-update?))))
+                                          #:defer-update? defer-update?)))
+    (test-= (process-queue-active-count q1) (if defer-update? 0 1))
+    (test-= (process-queue-waiting-count q1) (if defer-update? 1 0))
+    (test-= (process-queue-active-count q2) (if defer-update? 0 1))
+    (test-= (process-queue-waiting-count q2) (if defer-update? 2 1))
     (not (unbox will-1-called?))
     (not (unbox will-2-called?))
     (not (unbox will-3-called?))
 
     (ignore (define q2* (process-queue-wait q2)))
-    (test-= (process-queue-waiting-count q1) 0)
-    (test-= (process-queue-waiting-count q2) 1)
+    (test-= (process-queue-waiting-count q1) (if defer-update? 1 0))
+    (test-= (process-queue-waiting-count q2) (if defer-update? 2 1))
     (test-= (process-queue-waiting-count q2*) 0)
-    (test-= (process-queue-active-count q1) 1)
-    (test-= (process-queue-active-count q2) 1)
+    (test-= (process-queue-active-count q1) (if defer-update? 0 1))
+    (test-= (process-queue-active-count q2) (if defer-update? 0 1))
     (test-= (process-queue-active-count q2*) 0)
     (unbox will-1-called?)
     (unbox will-2-called?)
@@ -122,7 +126,8 @@
                    (process-queue-enqueue
                     the-q*
                     (λ _ (simple-process @~a{sleep 1; echo @i+}
-                                         (will-for i+))))]
+                                         (will-for i+)))
+                    #:defer-update? defer-update?)]
                   [else the-q*])))
             (define the-q
               (for/fold ([the-q q])
@@ -131,13 +136,14 @@
                  the-q
                  (λ _
                    (simple-process @~a{sleep 1; echo @i}
-                                   (will-for i)))))))
-    (test-= (process-queue-active-count the-q) 2)
-    (test-= (process-queue-waiting-count the-q) 1)
+                                   (will-for i)))
+                 #:defer-update? defer-update?))))
+    (test-= (process-queue-active-count the-q) (if defer-update? 0 2))
+    (test-= (process-queue-waiting-count the-q) (if defer-update? 3 1))
 
     (ignore (define the-q* (process-queue-wait the-q)))
-    (test-= (process-queue-active-count the-q) 2)
-    (test-= (process-queue-waiting-count the-q) 1)
+    (test-= (process-queue-active-count the-q) (if defer-update? 0 2))
+    (test-= (process-queue-waiting-count the-q) (if defer-update? 3 1))
     (test-= (process-queue-active-count the-q*) 0)
     (test-= (process-queue-waiting-count the-q*) 0)
     (for/and/test ([i (in-range 5)])
@@ -187,7 +193,8 @@
                                       (close-process-ports! info)
                                       (match i
                                         [2 (enq-proc! q* 4)]
-                                        [else q*]))))))
+                                        [else q*]))))
+                                 #:defer-update? defer-update?))
             (define q (for/fold ([q (make-process-queue 3)])
                                 ([i (in-range 4)])
                         (enq-proc! q i)))
@@ -209,7 +216,8 @@
                                        (λ (q* info)
                                          (close-process-ports! info)
                                          (vector-set! done-vec i #t)
-                                         q*))))))
+                                         q*)))
+                                    #:defer-update? defer-update?)))
      (define q/done (process-queue-wait q)))
     (process-queue-empty? q/done)
     (andmap identity (vector->list done-vec)))
@@ -229,24 +237,26 @@
                                               (process-queue-get-data q)))))
             (define q0 (process-queue-enqueue q
                                           (λ _
-                                            (simple-process "sleep 1; echo hi" will:record-output))))
+                                            (simple-process "sleep 1; echo hi" will:record-output))
+                                          #:defer-update? defer-update?))
             (define q1 (process-queue-enqueue q0
                                           (λ _
-                                            (simple-process "sleep 10; echo hi" will:record-output)))))
-    (test-= (process-queue-waiting-count q1) 0)
-    (test-= (process-queue-active-count q1) 2)
+                                            (simple-process "sleep 10; echo hi" will:record-output))
+                                          #:defer-update? defer-update?)))
+    (test-= (process-queue-waiting-count q1) (if defer-update? 2 0))
+    (test-= (process-queue-active-count q1) (if defer-update? 0 2))
 
     (ignore (define q1* (process-queue-wait q1)))
     (test-= (process-queue-waiting-count q1*) 0)
-    (test-= (process-queue-waiting-count q1) 0)
+    (test-= (process-queue-waiting-count q1) (if defer-update? 2 0))
     (test-= (process-queue-active-count q1*) 0)
-    (test-= (process-queue-active-count q1) 2)
+    (test-= (process-queue-active-count q1) (if defer-update? 0 2))
     (test-match (process-queue-get-data q1*)
                 (list-no-order "hi"
                                ;; empty bc killed
                                ""))))
 
-(define (test-priority-process-queue-basics make-process-queue)
+(define (test-priority-process-queue-basics make-process-queue #:defer-update? defer-update?)
   (test-begin
     #:name priority-simple
     (ignore
@@ -269,7 +279,8 @@
                                         (match i
                                           [2 3]
                                           [3 2]
-                                          [else i]))))
+                                          [else i])
+                                        #:defer-update? defer-update?)))
      (define q/done (process-queue-wait q)))
     (process-queue-empty? q/done)
     (test-equal? spawn-vec
@@ -297,11 +308,14 @@
                                         (match i
                                           [2 3]
                                           [3 2]
-                                          [else i]))))
+                                          [else i])
+                                        #:defer-update? defer-update?)))
      (define q/done (process-queue-wait q)))
     (process-queue-empty? q/done)
     (test-equal? spawn-vec
-                 #(0 1 2 3)))
+                 (if defer-update?
+                     #(3 2 0 1)
+                     #(0 1 2 3))))
 
   (test-begin
     #:name priority-children
@@ -325,7 +339,8 @@
                                    (match i
                                      [0 (enq-proc q* 4 0)]
                                      [else q*]))))
-                              priority))
+                              priority
+                              #:defer-update? defer-update?))
      (define q (for/fold ([q (make-process-queue 2 #f <)])
                          ([i (in-range 4)])
                  (enq-proc q i)))
@@ -338,7 +353,7 @@
                         _
                         2))))
 
-(define (test-imperative-process-queue-basics make-process-queue)
+(define (test-imperative-process-queue-basics make-process-queue #:defer-update? defer-update?)
   (test-begin
     #:name imperative-simple
     (ignore (define q (make-process-queue 1))
@@ -350,13 +365,14 @@
                                                  (λ (q info)
                                                    (set-box! will-called? #t)
                                                    (close-process-ports! info)
-                                                   q))))))
+                                                   q)))
+                                              #:defer-update? defer-update?)))
     (test-equal? (process-queue-get-data q) #f)
 
     (test-eq? q q1)
-    (test-= (process-queue-waiting-count q) 0)
+    (test-= (process-queue-waiting-count q) (if defer-update? 1 0))
     (not (unbox will-called?))
-    (test-= (process-queue-active-count q) 1)
+    (test-= (process-queue-active-count q) (if defer-update? 0 1))
 
     (ignore (define q1* (process-queue-wait q1)))
     (test-eq? q q1*)
@@ -377,7 +393,8 @@
                                         (λ (q* info)
                                           (set-box! will-1-called? #t)
                                           (close-process-ports! info)
-                                          q*)))))
+                                          q*)))
+                                     #:defer-update? defer-update?))
             (define q2 (process-queue-enqueue q1
                                      (λ _
                                        (simple-process
@@ -393,11 +410,13 @@
                                               (λ (q** info)
                                                 (set-box! will-3-called? #t)
                                                 (close-process-ports! info)
-                                                q**))))))))))
+                                                q**)))
+                                           #:defer-update? defer-update?))))
+                                     #:defer-update? defer-update?)))
     (test-eq? q q1)
     (test-eq? q q2)
-    (test-= (process-queue-active-count q) 1)
-    (test-= (process-queue-waiting-count q) 1)
+    (test-= (process-queue-active-count q) (if defer-update? 0 1))
+    (test-= (process-queue-waiting-count q) (if defer-update? 2 1))
     (not (unbox will-1-called?))
     (not (unbox will-2-called?))
     (not (unbox will-3-called?))
@@ -429,7 +448,8 @@
                    (process-queue-enqueue
                     the-q*
                     (λ _ (simple-process @~a{sleep 1; echo @i+}
-                                         (will-for i+))))]
+                                         (will-for i+)))
+                    #:defer-update? defer-update?)]
                   [else the-q*])))
             (define the-q
               (for/fold ([the-q q])
@@ -438,10 +458,11 @@
                  the-q
                  (λ _
                    (simple-process @~a{sleep 1; echo @i}
-                                   (will-for i)))))))
+                                   (will-for i)))
+                 #:defer-update? defer-update?))))
     (test-eq? q the-q)
-    (test-= (process-queue-active-count the-q) 2)
-    (test-= (process-queue-waiting-count the-q) 1)
+    (test-= (process-queue-active-count the-q) (if defer-update? 0 2))
+    (test-= (process-queue-waiting-count the-q) (if defer-update? 3 1))
 
     (ignore (define the-q* (process-queue-wait the-q)))
     (test-eq? q the-q*)
@@ -494,7 +515,8 @@
                                  (close-process-ports! info)
                                  (match i
                                    [2 (enq-proc! q* 4)]
-                                   [else q*]))))))
+                                   [else q*]))))
+                            #:defer-update? defer-update?))
             (define q (for/fold ([q (make-process-queue 3)])
                                 ([i (in-range 4)])
                         (enq-proc! q i)))
@@ -519,7 +541,8 @@
                                     (λ (q* info)
                                       (close-process-ports! info)
                                       (vector-set! done-vec i #t)
-                                      q*))))))
+                                      q*)))
+                                 #:defer-update? defer-update?)))
        (define q/done (process-queue-wait q)))
       (process-queue-empty? q/done)
       (andmap identity (vector->list done-vec))))

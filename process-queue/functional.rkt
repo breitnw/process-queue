@@ -34,4 +34,5 @@
 (module+ test
   (require "private/test-common.rkt")
 
-  (test-process-queue-basics make-process-queue))
+  (test-process-queue-basics make-process-queue #:defer-update? #f)
+  (test-process-queue-basics make-process-queue #:defer-update? #t))
