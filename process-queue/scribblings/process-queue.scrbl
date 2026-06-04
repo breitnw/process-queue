@@ -116,11 +116,15 @@ The predicate recognizing process queues.
 A process queue is empty if it has no actively running processes and no waiting processes.
 }
 
-@defproc[(process-queue-enqueue [q process-queue?] [launch (-> process-info/c)] [extra-data any/c #f]) process-queue?]{
+@defproc[(process-queue-enqueue [q process-queue?] [launch (-> process-info/c)] [extra-data any/c #f] [#:defer-update? defer-update? boolean? #f]) process-queue?]{
 Enqueues a process on the queue.
 @racket[launch] should launch the process (e.g. with @racket[process], but not necessarily) and return its @racket[process-info].
 
 @racket[extra-data] provides optional extra information that may or may not be used depending on the implementation (for example, a priority value).
+
+By default, this function is effectful. After the new process is enqueued, dead processes in the queue will be swept up and waiting processes will be spawned.
+If @racket[defer-update?] is @racket[#t], this behavior is disabled, and updates are deferred to a later call to @racket[process-queue-enqueue]
+(or @racket[process-queue-wait]). This is useful when you have many processes to enqueue at once, since checking for dead processes is a slow operation.
 
 Returns the updated process queue.
 

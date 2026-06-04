@@ -95,14 +95,17 @@
        (zero? (generic-functional-process-queue-waiting-count q))))
 
 ;; start-process should return a process-info?
-(define (enq-process q start-process [extra-arg #f])
+(define (enq-process q start-process [extra-arg #f] #:defer-update? [defer-update? #f])
   (define enqueue (generic-functional-process-queue-enqueue q))
-  (sweep-dead/spawn-new-processes
-   (struct-copy generic-functional-process-queue q
-                [waiting (enqueue (generic-functional-process-queue-waiting q)
-                              (process start-process)
-                              extra-arg)]
-                [waiting-count (add1 (generic-functional-process-queue-waiting-count q))])))
+  (define new-q
+    (struct-copy generic-functional-process-queue q
+                 [waiting (enqueue (generic-functional-process-queue-waiting q)
+                                   (process start-process)
+                                   extra-arg)]
+                 [waiting-count (add1 (generic-functional-process-queue-waiting-count q))]))
+  (if defer-update?
+      new-q
+      (sweep-dead/spawn-new-processes new-q)))
 
 (define (wait q #:delay [delay (current-process-queue-polling-period-seconds)])
   (let loop ([current-q q])

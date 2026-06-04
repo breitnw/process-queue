@@ -31,7 +31,7 @@
 (define (make-process-queue process-limit
                             [data-init #f]
                             #:empty? [empty? (λ _ #f)]
-                            #:enq [enq (λ (q . _) q)]
+                            #:enq [enq (λ (q #:defer-update? [ignored #f] . _) q)]
                             #:wait [wait (λ (q) q)]
                             #:active-count [active-count (λ (q) 1)]
                             #:waiting-count [waiting-count (λ (q) 1)]
@@ -61,7 +61,7 @@
   (make-process-queue process-limit
                       data-init
                       #:empty? (λ (q) (add-call! 'empty?) #f)
-                      #:enq (λ (q v . _) (add-call! 'enq) q)
+                      #:enq (λ (q v #:defer-update? [ignored #f] . _) (add-call! 'enq) q)
                       #:wait (λ (q) (add-call! 'wait) q)
                       #:active-count (λ (q) (add-call! 'active-count) 1)
                       #:waiting-count (λ (q) (add-call! 'waiting-count) 1)))
@@ -73,7 +73,7 @@
     #:name mock
     (ignore (define b (box #f))
             (define mq (make-process-queue 5
-                                           #:enq (λ (q . _)
+                                           #:enq (λ (q #:defer-update? [ignored #f] _)
                                                    (set-box! b #t)
                                                    q))))
     (not (unbox b))
@@ -104,7 +104,7 @@
         #:empty? (λ _
                    (hash-set! call-hash 'empty? #t)
                    #f)
-        #:enq (λ (q . _)
+        #:enq (λ (q #:defer-update? ignored . _)
                 (hash-set! call-hash 'enq #t)
                 q)
         #:wait (λ (q)

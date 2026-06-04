@@ -58,7 +58,8 @@
 
 (define empty?/c (process-queue? . -> . boolean?))
 (define enqueue/c ({process-queue? (-> process-info/c)}
-                   {any/c}
+                   {any/c
+                    #:defer-update? boolean?}
                    . ->* .
                    process-queue?))
 (define wait/c (process-queue? . -> . (and/c process-queue? process-queue-empty?)))
@@ -80,7 +81,7 @@
              [data           (or/c data/c
                                    (box/c data/c))]))
 
-(define-simple-macro (define-method-shorthands prefix:id [field-name:id ...])
+(define-simple-macro (define-method-shorthands prefix:id [[field-name:id keyword:keyword ...] ...])
   #:with [accessor ...] (map (λ (field-name) (format-id this-syntax
                                                         "process-queue-~a"
                                                         field-name))
@@ -89,16 +90,21 @@
                                                           "~a~a"
                                                           #'prefix accessor))
                                  (syntax-e #'[accessor ...]))
+  #:with [[keyword-id ...] ...] (map (λ (keywords)
+                                       (map (λ (keyword)
+                                              (format-id this-syntax "~a" keyword))
+                                            (syntax-e keywords)))
+                                     (syntax-e #'[[keyword ...] ...]))
   (begin
-    (define (shorthand-id a-proc-q . other-args)
-      (apply (accessor a-proc-q) a-proc-q other-args))
+    (define (shorthand-id a-proc-q (~@ keyword [keyword-id #f]) ... . other-args)
+      (apply (accessor a-proc-q) a-proc-q other-args (~@ keyword keyword-id) ...))
     ...))
 
 (define-method-shorthands short:
-  [empty?
-   enqueue
-   wait
-   active-count
-   waiting-count
-   get-data
-   set-data])
+  [(empty?)
+   (enqueue #:defer-update?)
+   (wait)
+   (active-count)
+   (waiting-count)
+   (get-data)
+   (set-data)])

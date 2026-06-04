@@ -30,8 +30,8 @@
                                                #:kill-older-than [proc-timeout-secs #f])
   (gen:generic-functional-process-queue
    imperative-process-queue-empty?
-   (λ (q v [extra #f])
-     (gen:enq-process q v extra)
+   (λ (q v [extra #f] #:defer-update? [defer-update? #f])
+     (gen:enq-process q v extra #:defer-update? defer-update?)
      q)
    (λ (q)
      (gen:wait q)
